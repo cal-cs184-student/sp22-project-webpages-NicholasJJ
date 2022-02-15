@@ -1,7 +1,234 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>
+  body {
+    padding: 100px;
+    width: 1000px;
+    margin: auto;
+    text-align: left;
+    font-weight: 300;
+    font-family: 'Open Sans', sans-serif;
+    color: #121212;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Source Sans Pro', sans-serif;
+  }
+</style>
+<title>CS 184 Rasterizer</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+<h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+<h1 align="middle">Project 1: Rasterizer</h1>
+<h2 align="middle">Nicholas Jennings, CS184</h2>
+
+<br><br>
+
+<div>
+
+<h2 align="middle">Overview</h2>
+<p>In this project I made a rasterizer. Rasterization is the process of taking some object, whether it be defined by continuous lines or by it's own set of pixel values, and converting it to a discrete set of pixel values (which in this case are then displayed on the computer screen).
+  The naive way of doing this, checking the color value of the object at each pixel, works for certain objects but tends to produce image artifacts which is called aliasing. The majority of the tasks in this project are various forms anti-aliasing, modifications to
+  the origional program meant to remove these image artifacts. The root cause of aliasing is that the output (screen) pixel frequency is small relative to frequency of signals in the input image (e.g. the edge of a triangle is red on the inside, white on the outside, and the transition between
+  colors is instantanious, resulting in very high frequency). Antialiasing, then, always has the goal of somehow reducing this relative frequency difference in order to get the highest input frequency to be half the output frequency. The other part of the project was to implement a transform system for
+  easier arangement of shapes. A transform can be thought of as a function that "transforms" an input object (i.e. moves it, scales it, rotates it, etc.). Transforms are technically linear functions, but act on
+  inputs given in homogenious coordinates, which allow transforms to produce effects like translations that you couldn't naively express linearly. By expressing the position, orientation, etc. of an object using 
+  a series of transforms, you can splice these transform series together to get the effect of "parent" and "child" shapes, where the child's transofrm series starts with the parent series, and then might have some additional transorms on the end. This means transforming the parent will also transform the child.
+  The final part of the project concerned mapping textures onto shapes. Since all the shapes we rasterize in this project are combinations of triangles, we use barycentric coordinates (a continuous coordinate system within each triangle) to calculate each sample points position
+  relative to the verticies of the triangle it is in. The svg file supplying these triangles also provides the location of each triangle vertex in the texture, so each sample point can then be converted into texture coordinates.
+  Again, this simple aproach results in aliasing, so various antialiasing tequniques are employed to reduce the frequency of texture coordinates relative to the frequency of the screen samples.
+</p>
+
+<h2 align="middle">Section I: Rasterization</h2>
+
+<h3 align="middle">Part 1: Rasterizing single-color triangles</h3>
+
+<p>Here is an example 2x2 gridlike structure using an HTML table. Each <b>tr</b> is a row and each <b>td</b> is a column in that row. You might find this useful for framing and showing your result images in an organized fashion.</p>
+
+<p>To rasterize a triangle, you loop through potential interior pixels of the triangle and color them in if they are actually interior to the triangle.
+  The simplest way to narrow down a set of potential pizels is to only consider pizels within the bounding box of the triangle: pixels whose x coordinate is between the max and min trianlge x coordinate, and likewise for the y coordinate.
+  Fortunatly, the most extreme coordinate values of a triangle will be held by the points defining the triangle, so to get the max/min x/y values we just check the input points to the rasterization function.
+  To check if a point is actually interior to the triangle, we check if the on the same "side" of each line of the triangle. "Side" can be calculate by taking the sign of the dot product of the normal vector of the line, and the vector from 
+  a point on the line to the point in question. The normal vector is sort of arbitrarily decided on via the right-hand rule, so if the points of the triangle are defined counterclockwise as 1,2,3 and the lines of the triangle are defined 1->2, 2->3, 3->1
+  then all normals will face the interior of the triangle. If the triangle points were ordered clockwise instead the normals would all face outside the triangle. Either way, the only way a point can be on the same side of each line (either the side the normal points to or the opposite)
+  is if the point is inside the triangle. The project spec says to include edges when drawing the triangle, this means samples on the lines should always be included. The dot product of a point on a line with the normal of that line is 0, so all this calls for is defining points with a dot product of 0 to be on "both sides" of the line.
+</p>
+<p>  My Algorithm is no worse than one that checks the bounding box of the triangle because that is exactly what my algorithm does.
+</p>
+
+<img src="images/t1.png" align="middle" width="400px"/>
+
+
+
+
+<h3 align="middle">Part 2: Antialiasing triangles</h3>
+
+<p>Supersampling is useful because it removes high frequency signals (sudden changes in color) from the image. It does this by sampling each pixel multiple times in an internal grid, and setting the pixel color value
+  to be the average of the samples. This has the effect of blurring the edges of the triangles, which gets rid of jaggies and floating pixels. I implemented supersampling by increasing the size of the sample buffer to match the sample rate.
+  I'm sure it's possible to order the samples in this larger buffer as if they were pixels on a larger image, but I found it easiar to treat the samples the same way the framebuffer treats individual r/g/b values. Each pixel now gets Sample_Rate consecutive
+  entries in the sample buffer, where each entry is another sample. When the framebuffer is being filled in resolve_to_framebuffer the samples are simply averaged out.
+</p>
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t21.png" align="middle" width="400px"/>
+        <figcaption align="middle">No Super Sampling</figcaption>
+      </td>
+      <td>
+        <img src="images/t24.png" align="middle" width="400px"/>
+        <figcaption align="middle">2x2 Super Sampling</figcaption>
+      </td>
+      <td>
+        <img src="images/t216.png" align="middle" width="400px"/>
+        <figcaption align="middle">4x4 Super Sampling</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+<p>Above you can see how supersampling helps to smooth out the floating pixels in this triangle. In this area the triangle is getting to be less than 1 pixel wide,
+  so without supersampling it passes between the sample points of a few pixels before hitting a few more down the line. By adding more samples it becomes more likeley that the triangle will hit a sample, which reduces the effect.  
+</p>
+
+<p>I also implemented another form of sampling. Jittered sampling divides each pixel into a matrix of squares, and assigns one sample per smaller square, however the position of the sample within the square is random.
+  This provides decent coverage of each pixel while still introducing some randomness. Below you can see why that randomness might be useful. Since the triangle is so verticalat this point, if it happens to line up correctly with the supersample
+  grid it can stay lined up for a while and dramatically change how much of an effect it has on the pixel color. This results in floating pixels even after 3x3 supersampling.
+  Due to their randomness it's less likeley for horizontal or vertical objects to line up with anything, so no such color dip occurs. The tradeoff is that jittered sampling is much more noisy than regular sampling.
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t29.png" align="middle" width="400px"/>
+        <figcaption align="middle">Regular Super Sampling</figcaption>
+      </td>
+      <td>
+        <img src="images/t2j.png" align="middle" width="400px"/>
+        <figcaption align="middle">Jittered Super Sampling</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3 align="middle">Part 3: Transforms</h3>
+
+<p>Below the cube man is attempting to a yoga pose. I think it's called a tree pose, but I'm not sure. I also gave them a shirt and pants.</p>
+
+<img src="images/t3.png" align="middle" width="400px"/>
+
+
+<h2 align="middle">Section II: Sampling</h2>
+
+<h3 align="middle">Part 4: Barycentric coordinates</h3>
+
+<p>Barycentric coordinates are a way to interlopate between extreme values on a object (in this case a triangle). This allows the discrete data that defines a triangle to be made continuous.
+  Barycentric coordinates can be used to interlopate between any set of vectors, the example image below interlopates between the colors red, green, and blue. There are a couple ways of thinking
+  about the interlopation that result in the equation use, but the way that makes sense to me is to think of the equation of calculating the areas of the 3 triangles made by the sample point and the 
+  edges of the triangles. The percent of the full triangle that a triangle takes up is proportional to the distance from the sample point to the triangle vertex opposite it's side.
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t4t.png" align="middle" width="400px"/>
+        <figcaption align="middle">Triangle Barycentric Example</figcaption>
+      </td>
+      <td>
+        <img src="images/t4s.png" align="middle" width="400px"/>
+        <figcaption align="middle">Test7 svg</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h3 align="middle">Part 5: "Pixel sampling" for texture mapping</h3>
+
+<p> Pixel sampling is the process of sampling a discrete set of pixels (e.g. a .png or .jpg) on values that might not lie exactly at the the points with defined color. These defined points can be thought of as the center of each pixel.
+  In nearest pixel sampling, we set the color of the sample to the color of whichever pixel-center is nearest the point. That is, if each pixel is a square of a certain color, nearest sampleing return the color of the square the sample is in.
+  Bilinear sampling Lerps (performs linear interpolation) on the 4 pixel centers surrounding the sample point. This has the effect of blurring the color values of samples that lie between the centers into weighted sums of the 4 closest centers.
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t5n1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest pixel sampling, 1x1 supersampling</figcaption>
+      </td>
+      <td>
+        <img src="images/t5p1.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilineal sampling, 1x1 supersampling</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/t5n16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Nearest pixel sampling, 16x16 supersampling</figcaption>
+      </td>
+      <td>
+        <img src="images/t5p16.png" align="middle" width="400px"/>
+        <figcaption align="middle">Bilineal sampling, 16x16 supersampling</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<p>The aliasing that shows up in nearest pixel sampling is caused by the high frequency change from one texel color to the next. If the underlying texture doesn't have antialiasing, or is small relative to it's size on screen,
+  alaising can occur. Aliasing can also occur if parts of the texture are stretched in such a way that a single screen pixel change, can result in major texel changes. This is what is happening in the above images.
+  The seal image is warped in such a way that, even with the antialiasing of the underlying texture, the frequency is high enough that you can see jaggies and some moire. The blurring from the bilinear sampling negates this effect.
+</p>
+
+<h3 align="middle">Part 6: "Level sampling" with mipmaps for texture mapping</h3>
+
+<p>When running pixel sampling on a texture in a screen area where the texture has high frequency compared to the screen pixels it takes up, you get aliasing effects. A reasonable solution might be to run antialiasing on
+  the texture to lower it's frequency, but if part of that same texture already had a decent frequency compared to it's screen pixels in some other part of the image, reducing the frequency of the whole texture will make some parts of
+  the image blurry! Level sampling is a way to get the best of both worlds, by only reducing the frequency of a texture at parts of the screen where it's neccecary. In this project achive level sampling
+  by implementing a mipmap, which is a series of renditions on an origional texture, each one with half the resolution per side than the last. When sampling the texture, we first determin the level of the mipmap by comparing changes
+  in screen coordinates to changes in texture coordinates. If screen coordinates changeing results in large changes in texture coordinates, that means the texture frequency must be reduced, so the mipmap level increases. Once we find the
+  required level value, we sample the appropriate mipmap level to get a color that will change with a frequency low enough to avoid aliasing but high enough not seem visually blurry.
+</p>
+
+<p>Switching from nearest to bilinear pixel sampling requires a small amount of extra compute (a few lerps per screen pixel) and is the only teqnique implemented in this project
+  that can deal with low resolution texture images. Level sampling allows a single texture to be sampled at multiple frequency levels, but requires some square roots to compute and moderatly increases the memory cost for each texture (mipmap textures are 4/3 times the origional size).
+  Supersampling has memeory and compute costs that scale with the number of supersamples per pixel. These costs get big fast, but it's also the only tequnique in this project that deals with general aliasing in shapes, not just textures.
+</p>
+
+<div align="middle">
+  <table style="width=100%">
+    <tr>
+      <td>
+        <img src="images/t6lzpn.png" align="middle" width="400px"/>
+        <figcaption align="middle">level 0, nearest pixel</figcaption>
+      </td>
+      <td>
+        <img src="images/t6lzpl.png" align="middle" width="400px"/>
+        <figcaption align="middle">level 0, linear pixel</figcaption>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <img src="images/t6lnpn.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, nearest pixel</figcaption>
+      </td>
+      <td>
+        <img src="images/t6lnpl.png" align="middle" width="400px"/>
+        <figcaption align="middle">nearest level, linear pixel</figcaption>
+      </td>
+    </tr>
+  </table>
+</div>
+
+<h2 align="middle">Section III: Art Competition</h2>
+<p>If you are not participating in the optional art competition, don't worry about this section!</p>
+
+<h3 align="middle">Part 7: Draw something interesting!</h3>
+
+</body>
 </html>
