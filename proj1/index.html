@@ -132,9 +132,12 @@
 <h3 align="middle">Part 4: Barycentric coordinates</h3>
 
 <p>Barycentric coordinates are a way to interlopate between extreme values on a object (in this case a triangle). This allows the discrete data that defines a triangle to be made continuous.
-  Barycentric coordinates can be used to interlopate between any set of vectors, the example image below interlopates between the colors red, green, and blue. There are a couple ways of thinking
+  Barycentric coordinates can be used to interlopate between any set of vectors, the example image below interlopates between the colors red, green, and blue. One common use of barycentric coordinates, as seen in the next task,
+  is to use coordinates of a texture image as the vectores to be interpolated, as this allows an entire triangle to be textured while only defining 3 points (the verticies) that have explicite coordinates in the texture. There are a couple ways of thinking
   about the interlopation that result in the equation use, but the way that makes sense to me is to think of the equation of calculating the areas of the 3 triangles made by the sample point and the 
-  edges of the triangles. The percent of the full triangle that a triangle takes up is proportional to the distance from the sample point to the triangle vertex opposite it's side.
+  edges of the triangles. The percent of the full triangle that a triangle takes up is proportional to the distance from the sample point to the triangle vertex opposite it's side. In the triangular
+  image below, the three verticies of the triangle are given the coordinate values of Red (1,0,0) Green (0,1,0) and Blue (0,0,1), and each interior point of the triangle is colored based on it's barycentric
+  coordinates relative to these verticies. You can see the color interpolates between the extremes, as it's more blurred in the center of the tiangle but is close to a single-channel RGB color near the verticies.
 </p>
 
 <div align="middle">
