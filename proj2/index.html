@@ -220,7 +220,14 @@
     <h3 align="middle">Part 6: Loop subdivision for mesh upsampling</h3>
 
     <p>
-      To implement loop subdivision,
+      To implement loop subdivision, I followed the advice of the comments in the code and first calculate the new positions of each vertex, then add edges, flip, and reposition the verticies.
+      Calculating the new positions was just a matter of following the equations from lecture, writing down example meshes on paper to plot out a reliable "path" on how I could update the halfedge in the loop.
+      Splitting edges turned out to be the trickiest part of this task. On the one hand, it makes sense to mark all the edges made/covered by the split as a new edge, since this 
+      would allow the loop to terminate eventually. However, doing this winds up labeleing all edges as "new", and in the next step I wanted a way to differentiate new edges from old ones so that I would only flip
+      truly new edges. I tried implementing this a few ways, but eventually opted for the simplest solution and just added a new bool to the edge class called "isNovel" that only refers to the edges that were not visibly
+      there pre-split. So the two edges created along the initial split edge are "new" but not "novel" and the edges that cut across the old edge are both "new" AND "novel". It's only the novel
+      edges that we want to consider flipping, so I use that variable in the flipping step. I went with this solution since it doesn't require any knowledge that has to be derived on paper, or any knowledge of
+      how other class methods work.
     </p>
 
 
