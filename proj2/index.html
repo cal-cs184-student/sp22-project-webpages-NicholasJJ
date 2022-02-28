@@ -1,7 +1,324 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+
+<head>
+  <style>
+    body {
+      padding: 100px;
+      width: 1000px;
+      margin: auto;
+      text-align: left;
+      font-weight: 300;
+      font-family: 'Open Sans', sans-serif;
+      color: #121212;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      font-family: 'Source Sans Pro', sans-serif;
+    }
+  </style>
+  <title>CS 184 Mesh Editor</title>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans|Source+Sans+Pro" rel="stylesheet">
+</head>
+
+
+<body>
+
+  <h1 align="middle">CS 184: Computer Graphics and Imaging, Spring 2022</h1>
+  <h1 align="middle">Project 2: Mesh Editor</h1>
+  <h2 align="middle">Nicholas Jennings, CS184</h2>
+
+  <br><br>
+
+  <div>
+
+    <h2 align="middle">Overview</h2>
+    <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole.
+      Share your thoughts on what interesting things you've learned from completing the project.</p>
+
+    <h2 align="middle">Section I: Bezier Curves and Surfaces</h2>
+
+    <h3 align="middle">Part 1: Bezier curves with 1D de Casteljau subdivision</h3>
+
+    <p>de Casteljau's Algorithm is a way to create a Bezier curve using induction. Starting with a set of n control points defining
+      the curve and a float t between 0 and 1, the algorithm lerps creates a new set of n-1 points by lerping between each adjacent origional point
+      by n. It then lerps between adjacent points in the n-1 points to create a new set of n-2 points, and so on until it reaches a single point, which is 
+      on the curve. This point is also the interpolation along the curve by t. The recursive framework of the algorithm is already implemented,
+      so all I did to implement the algorithm is write the recursive step of creating a new std::vector and populating it with the interpolations by t of each
+      pair of adjacent points in the input vector.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t1_0.png" align="middle" width="600px" />
+            <figcaption align="middle">Initial Step</figcaption>
+          </td>
+          <td>
+            <img src="images/t1_1.png" align="middle" width="600px" />
+            <figcaption align="middle">1st loop</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t1_2.png" align="middle" width="600px" />
+            <figcaption align="middle">2nd loop</figcaption>
+          </td>
+          <td>
+            <img src="images/t1_3.png" align="middle" width="600px" />
+            <figcaption align="middle">3rd loop</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t1_4.png" align="middle" width="600px" />
+            <figcaption align="middle">4th loop</figcaption>
+          </td>
+          <td>
+            <img src="images/t1_f.png" align="middle" width="600px" />
+            <figcaption align="middle">Final position</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t1_d.png" align="middle" width="600px" />
+            <figcaption align="middle">Different Bezier Curve</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+
+    <h3 align="middle">Part 2: Bezier surfaces with separable 1D de Casteljau subdivision</h3>
+
+    <p>
+      The de Casteljau Algorithm generalizes from a Bezier curve to a Bezier surface by running the algorithm twice, once of the "rows" and once for the "columns".
+      Imagine the control points for the surface are control points for a series of horizontal and vertical bezier curves. These curves would form a sort of latice that
+      roughly defines the shape of the surface. All the generalized de Casteljau Algorithm does is calculate a series of points on the horizontal bezier curves with the same
+      interpolation value (roughly the same "horizontal" location or column) and then use these points as a new curve to find a point with the given "vertical" location.
+    </p>
+
+    <div align="middle">
+      <img src="images/t2.png" align="middle" width="400px" />
+    </div>
+
+    <h2 align="middle">Section II: Sampling</h2>
+
+    <h3 align="middle">Part 3: Average normals for half-edge meshes</h3>
+
+    <p>
+      I implemented area weighted vertex normals by summing and normalizing the cross-products of each adjacent pair of vectors radiating from the vertex.
+      To get the Vector pairs, for each face the vector is a part of, I subtracted the central vertex position from the positions of the other two verticies.
+      The cross product of two vectors is orthogonal to both vectors and has the magnitude of the area of the parallelogram formed by the two vectors.
+      The area of the triangle formed by these two vectors (i.e. the face that the vectors belong to) has half the area of the parallelogram, but 
+      since this multiple is applied to all faces it won't affect the weighting and can be ignored. This means each cross product is the normal of the face, 
+      weighted by the area of the face, which is exactly what we need! After summing the cross products, I normalized the vector to get the final normal vector.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t3_b1.png" align="middle" width="400px" />
+            <figcaption align="middle">No Vertex Normals</figcaption>
+          </td>
+          <td>
+            <img src="images/t3_s1.png" align="middle" width="400px" />
+            <figcaption align="middle">Vertex Normals</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t3_b2.png" align="middle" width="400px" />
+            <figcaption align="middle">No Vertex Normals</figcaption>
+          </td>
+          <td>
+            <img src="images/t3_s2.png" align="middle" width="400px" />
+            <figcaption align="middle">Vertex Normals</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h3 align="middle">Part 4: Half-edge flip</h3>
+
+    <p>
+      My implementation strategy follows the implementation guide pdf's suggestion and makes every assignment as explicite as possible. I first create a variable for each mesh element related
+      to the flip, and then reassign each element based on a diagram I wrote down on some scratch paper. My only implementation/debugging "trick" is to stick
+      to the algorithm to keep things as simple as possible.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t4_0.png" align="middle" width="400px" />
+            <figcaption align="middle">No Edge Flips</figcaption>
+          </td>
+          <td>
+            <img src="images/t4_1.png" align="middle" width="400px" />
+            <figcaption align="middle">1 Edge Flip</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div align="middle">
+      <img src="images/t4_2.png" align="middle" width="400px" />
+      <figcaption align="middle">Many Edge Flips</figcaption>
+    </div>
+
+    <p>
+      I had a very humbling debugging journey. At first I thought that I could save some time by attempting to lable the halfedges post-flip such that 
+      I'd have to reassign as few pointers as possible. A bug popped up where the program crashed every time I tried to flip anything. After trying in vain
+      to find the bug I decided to re-write the pointer assignments completely explicitly, and since I would be assigning everything again (even if the pointer
+      didn't change), I just used the layout shown in the implementation guide pdf. Unfortunatley, I wasn't able to experience the easier debugging experience promised by
+      the pdf because the new code worked first try.
+    </p>
+
+    <h3 align="middle">Part 5: Half-edge split</h3>
+
+    <p>
+      I implemented the edge split operation similar to how I implemented the flip operation: very carefully. I used scratch paper to write down the initital variables, and the new values
+      they should have after the split, then I carefully wrote these in code. The only novel problem of this part was finding the position of the new vertex,
+      which I did by averaging the position of the "top" and "bottom" vertecies in the diagram. The only implementation "trick" I used was re-using the initial variable lables from part 4,
+      so that I could simply copy+paste that part of the code.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t5_0.png" align="middle" width="400px" />
+            <figcaption align="middle">No Edge Modifications</figcaption>
+          </td>
+          <td>
+            <img src="images/t5_1.png" align="middle" width="400px" />
+            <figcaption align="middle">After some Edge Splits</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div align="middle">
+      <img src="images/t5_2.png" align="middle" width="400px" />
+      <figcaption align="middle">After Some more flips and splits</figcaption>
+    </div>
+
+    <p>
+      Fortunatly, my code worked correctly the first time, so I have no debugging journey to share.
+    </p>
+
+
+    <h3 align="middle">Part 6: Loop subdivision for mesh upsampling</h3>
+
+    <p>
+      To implement loop subdivision,
+    </p>
+
+
+    <p>
+      Under subdivision, sharp edges become less sharp. This is expected, since the point of this sort of subdivision is to "smooth out" a surface,
+      which means making all edges less sharp. The best way to reduce this effect would probably be to add a feature to the program to make subdivision
+      not alter the verticies of certain edges, like what was discussed in lecture. Only using pre-splitting, the best system I could find was to pre-split the nearby
+      edges to the sharp edges neighboring faces get split up a lot. This causes the face to to deform much under subdivision, which keeps the edge looking sharp.
+      Splitting the sharp edge itself sometimes produced a crowning effect that didn't look right, so I tried to avoid this. I've also included
+      an example of
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t6_t0.png" align="middle" width="400px" />
+            <figcaption align="middle">Sharp Edge</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_t2.png" align="middle" width="400px" />
+            <figcaption align="middle">Sharp Edge after subdivision</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t6_preCrown.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split sharp edges</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_crown.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split sharp edges after subdivision (crown effect)</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t6_tb0.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split nearby edges</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_tb1.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split nearby edges after subdivision</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t6_te0.png" align="middle" width="400px" />
+            <figcaption align="middle">Extremely Pre-Split edges</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_te1.png" align="middle" width="400px" />
+            <figcaption align="middle">Extremely Pre-Split after subdivision</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <p>
+      The asymmetry in the cube occurs because, while the geometry of the cube is symmetric, the topology of the cube was asymmetric.
+      Since subdivision depends on geometry AND topology (e.g. old verticies are updated based on their neighboring verticies, which are determined
+      by the mesh topology) this asymmetry becomes apparent in the resulting subdivision geometry. To fix the asymmetry, I made the topology symmetric.
+      To do this I split each of the diagonal edges running across the faces of the cube, so that each face was composed of 4 symmetric triangles.
+    </p>
+
+    <div align="middle">
+      <table style="width=100%">
+        <tr>
+          <td>
+            <img src="images/t6_c0.png" align="middle" width="400px" />
+            <figcaption align="middle">Default Cube</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_c1.png" align="middle" width="400px" />
+            <figcaption align="middle">Default Cube after subdivision</figcaption>
+          </td>
+        </tr>
+        <br>
+        <tr>
+          <td>
+            <img src="images/t6_c2.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split cube</figcaption>
+          </td>
+          <td>
+            <img src="images/t6_c3.png" align="middle" width="400px" />
+            <figcaption align="middle">Pre-Split cube after subdivision</figcaption>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <h2 align="middle">Section III: Optional Extra Credit</h2>
+    <p>If you are not participating in the optional mesh competition, don't worry about this section!</p>
+
+    <h3 align="middle">Part 7: Design your own mesh!</h3>
+
+</body>
+
 </html>
