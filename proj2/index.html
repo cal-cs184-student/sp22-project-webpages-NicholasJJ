@@ -37,8 +37,18 @@
   <div>
 
     <h2 align="middle">Overview</h2>
-    <p>Give a high-level overview of what you implemented in this project. Think about what you've built as a whole.
-      Share your thoughts on what interesting things you've learned from completing the project.</p>
+    <p>
+      In this project, I implemented 1d and 2d bezier curves, and then implemented several useful functions for manipulating and rendering triangle meshes. Bezier curves
+      are a useful tool for rendering curved things. They don't take up much memory (just a handful of points can describe a very specific curve), can be moved along with 
+      respect to a single parameter, and can be calculated with a simple recursive algorithm. Part 1 was simply to implement this algorithm, and part 2 generalized the algorithm
+      to 2 dimensions, allowing an array of points to describe a "Bezier Surface" that allows for a smooth rendering of a 3d object. Unfortunatley, although the algorithm for drawing
+      bezier curves is simple to implement, it's recursive nature means it's computationally intensive, especially in 2 dimensions. In Part 3, to render smooth shapes without using Bezier
+      curves, I implemented a function to average the normals of verticies using the normals of their faces, weighted by area. This removes the sharp normal (and thus lighting) changes at the verticies
+      and results in a mesh rendering that looks smooth. The next 3 parts were all centered around manipulating the mesh itself, leading up to a final algorithm to subdivide and smooth
+      out any mesh. In parts 4 and 5 I implemented edge flipping and edge splitting by carefully reasigning the pointers/iterators of the elements of the half-edge data structure and, when 
+      neccecary, creating new elements for the structure. In part 6 I used the functions defined in the previous parts to implement the algorithm described in lecture to subdivide a mesh surface, utilising
+      the provided fields of the data structure to pre-compute the eventual vertex positions pre-splitting in order to simplify the algorithm.
+    </p>
 
     <h2 align="middle">Section I: Bezier Curves and Surfaces</h2>
 
