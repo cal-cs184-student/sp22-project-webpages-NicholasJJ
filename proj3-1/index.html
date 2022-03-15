@@ -1,7 +1,353 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-1 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Nicholas Jennings  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Nicholas Jennings</h2>
+
+    <div class="padded">
+        <p>
+          In this project, I implemented the basic features of a pathtracing rendering system. In order to do this I first had to implement ray tracing, which required both a function for creating rays based on the screen coordinates the ray relates to,
+          and a function for calculating the intersections between a ray and some scene primitives (triangles and spheres). Calculating the scene intersection with the ray should be as simple as calculating the closest intersection (the one with the smallest t values, where a ray is o+td for vectors o and d)
+          but this method takes extrememly long for complicated scenes (the complexity is linear with the number of objects in the scene). To adress this I implemented a BVH (Bounding Volume Hierarchy), which splits the scene primitives into a hierarchical tree of bounding box nodes, by recursively calculating the intersections between the ray 
+          and these bounding boxes, and then not checking intersections between any primitives/bounding boxes inside a bounding box the ray didn't collide with, we can cut down on intersection calculations and get and algorithm that scales logarithmically with scene objects. Much Better!
+          To implement path tracing I wrote functions to calculate the Zero, One, and At Least One bounce lighting for a given scene intersection. The zero bounce lighing checks if any light is coming to the camera directly from the intersection point, the one bounce calculates how the point is lit zero-bounce rays from the scene lights (this function was implemented in both a 
+          brute force uniform sampling method, and an importance sampling method that narrows down the tested light rays while maintaining the same expected value via monte-carlo integration), and the at-least-one bounce uses one-bounce to recursively calculate the global illumination of a point in the scene.
+          By combining the zero and at-least-one bounce lighting, I calculate the light heading to the camera from a specific intersection, which is then averaged over many rays per screen pixel to create a noise-free final image. Some parts of a scene are less affected by noise than others (the light source itself, for example) so to further reduce computation time I 
+          implemented an adaptive sampling system that stops sampling certain pixels once it's value converges.
+        </p>
+
+    <h2 align="middle">Part 1: Ray Generation and Intersection</h2>
+        <p>
+            To generate a ray, we first have to convert a pixel position to a normalized screen position, then convert that to camera coordinates, and then convert that into a ray direction.
+            Pixel position to camera coordinates simply requires dividing the pixel value (plus the random inner-pixel value) by the width and height of the screen. Screen coordinates are then used to lerp between the bottom left and top right screen position 
+            (calculated using the atan formula in the spec) to achive the x and y camera coordinate. The camera z coordinate is always -1. The origin of the ray is simply the camera's world position, and the 
+            direction of the ray is the normalized camera coordinate vector (really the vector from the camera origin to the camera coordinate, but the camera origin in camera space is 0,0,0), written in world space
+            this can be calculated using the c2w matrix.
+        </p>
+        <p>
+            Primitive Sphere intersection works exactly as described in lecture. The equations for the ray and sphere combine to form a quadratic who's 0's are the points of intersection.
+            We check first to see in the 0's will be imaginary, in which case the ray has missed the sphere. If the roots are real we simply use the intersection with the smaller t-value along the ray.
+        </p>
+        <p>
+            The triangle intersection algorithm first calculates the normal of the triangle using the cross product of two of the triangle edges. It uses this normal (and one of the points of the triangle) as input
+            to the ray-plane equation from class. If the ray intersects the plane with a t-value in the proper range, the algorithm checks if the point of intersection lies within the triangle.
+            This part of the algorithm plays out similarly to the one from project 1, except in 3D. To get the normals of each triangle edge I took the cross product to the edge with the triangle's normal, I then compare the dot products of 
+            each normal with the vector from the triangle corner to the intersection point to determine if the point is inside the triangle. The spec recomended taking the barycentric coordinates of the point to calculate the 
+            normal at that point. I used ratios of cross products to calculate the relative area of the whole triangle to the areas of the triangle formed by each edge of the triangle and the intersection point, and these ratios were shown in class to
+            be the barycentric coordinates I needed.
+        </p>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t1_gems.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBGems</figcaption>
+                </td>
+                <td>
+                  <img src="images/t1_spheres.png" align="middle" width="400px" />
+                  <figcaption align="middle">CBSpheres</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+        <!-- <p>Here is an example of how to include a simple formula:</p>
+        <p align="middle"><pre align="middle">a^2 + b^2 = c^2</pre></p>
+        <p>or, alternatively, you can include an SVG image of a LaTex formula.</p>
+        <p>This time it's your job to copy-paste in the rest of the sections :)</p> -->
+    <h2 align="middle">Part 2: Bounding Volume Hierarchy</h2>
+          <p>
+            To consturct the BVH, we start by calculating the total number of centroids in the bounding box, while also calculating the full extend of the bounding box.
+            If the number of centroids is below the specified value, we simply set the start and end primitive iterators to the ones passed into the function, since this is a leaf node.
+            If the number of centroids is larger we need to split the node. I did this by calulating the longest axis of the bounding box, and then finding the average
+            centroid position along the axis. I figured the average would be a decent heuristic since it hopefully avoids nodes with empty space in them
+            (as seen in lecture) and it meant I wouldn't have to deal with edge cases where no centroid gets assigned to a child node. All centroids with values less than the average will go to the left node, and the rest will go to the right node. I resort the portion of the vector represented by the input iterators, so that the all the vectors
+            in the left node come first, and record first iterator in the left node, the first iterator of the right node, and the iterator after the last iterator in the right node, to be the start and end points of
+            the two new nodes. I then recursively call the function.
+          </p>
+
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t2_beast.png" align="middle" width="400px" />
+                  <figcaption align="middle">Beast</figcaption>
+                </td>
+                <td>
+                  <img src="images/t2_blob.png" align="middle" width="400px" />
+                  <figcaption align="middle">Blob</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t2_dragon.png" align="middle" width="400px" />
+                  <figcaption align="middle">Dragon</figcaption>
+                </td>
+                <td>
+                  <img src="images/t2_lucy.png" align="middle" width="400px" />
+                  <figcaption align="middle">Lucy</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <p>
+            It took 0.05 seconds to render cow with acceleration compared to 6.85 seconds without.
+            It took 0.06 seconds to render the more traingle-heavy maxplanck with my BVH acceleration compared to 85.98 seconds without.
+            Interestingly, CBlucy, which should contain more triangles than maxplanck, also took 0.05 seconds, which demonstrates that the time length, when acceleratd, is caused
+            mostly by overhead setup. CBLucy took 275.80 seconds to render without acceleration, and cause my computer to noticably heat up.
+            As expected, the default render time scales much faster than the acceleration structure (it should be linear vs logarithmic).
+            I'm using an M1 Max chip, which is finally able to flex it's muscles and show that, even with the default renderer, fairly complicated meshes like cow can 
+            still be rendered in a reasonable amount of time (although I suppose 0.05 is fast enough to render a moving picture in real-time, and 6.85 is not, so that's something).
+            In any case, algorithmic complexity eventually wins out. The default render time starts out middling and gets worse, but the accelerated time starts out great and barely changes.
+          </p>
+    <h2 align="middle">Part 3: Direct Illumination</h2>
+          <p>
+            To do Zero-Bounce lighting, once we've intersected an object we simply return whatever light that object is emmiting.
+            To do One-Bounce lighting, we have to sample the hemisphere around the intersection point to see if any light rays hit it. Threre are 2 ways we implement this.
+            The first is to uniformly random sample the hemisphere. We pick a direction, use this to create a ray in world space, and cast the ray. We use what emmisions the ray returns
+            (0 emmisions if the ray didn't hit anything or hit a non-emmiting object) as input to the monte carlo estimate shown in the spec. For uniform sampling p(wj) = 1/2pi. 
+            The second way to sample is to importance sample the light sources. Here the implementation is to sum the monte carlo estimate for each light. These estimates
+            use the output of the helper function sample_l to generate a world-space ray, and the only substantial implementation difference is that now we check if the ray doesn't hit something 
+            (this means there's nothing blocking the light source).
+          </p>
+
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t3_bH.png" align="middle" width="400px" />
+                  <figcaption align="middle">Uniform Sampling Bunny</figcaption>
+                </td>
+                <td>
+                  <img src="images/t3_b.png" align="middle" width="400px" />
+                  <figcaption align="middle">Importance Sampling Bunny</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <p>
+            Below are examples of the same image rendered with light importance sampling. All images have 1 sample per pixel,
+            but each image uses a different number of light samples per intersection. As expected, the noise levels in the soft shadows
+            decreases with more samples, since the monte carlo estimate is able to run at a higher resolution.
+          </p>
+
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t3_bunny1.png" align="middle" width="400px" />
+                  <figcaption align="middle">l = 1</figcaption>
+                </td>
+                <td>
+                  <img src="images/t3_bunny4.png" align="middle" width="400px" />
+                  <figcaption align="middle">l = 4</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t3_bunny16.png" align="middle" width="400px" />
+                  <figcaption align="middle">l = 16</figcaption>
+                </td>
+                <td>
+                  <img src="images/t3_bunny64.png" align="middle" width="400px" />
+                  <figcaption align="middle">l = 64</figcaption>
+                </td>
+              </tr>
+            </table>
+
+            <p>
+              Giving large input values for the number of light samples per intersection, both uniform hemisphere sampleing and importance sampling
+              converge to the same image. The main difference is that light sampling converges much faster, so a smaller value can be used to render an
+              acceptable image. There's also a slight difference in speed-per-shadow-ray, since uniform sampling has to calculate the nearest intersection (in order to check if this is 
+              a light source) where importance sampling just has to check if there's any intersection. I didn't find any major changes in rendering speeds, but I suspect this might be caused
+              by the scene complexity. For example, in the bunny scene most shadow rays will have less than 4 intersections (the ceiling, and possible either side of the bunny) but this is only
+              because the bunny is aproximatly convex and there's only one major object in the scene. In any case, the speed up due to importance sampling will mostly come from the smaller required input resolution.
+            </p>
+          </div>
+    <h2 align="middle">Part 4: Global Illumination</h2>
+          <p>
+            Global illumitation works by replacing the One_bounce_radiance function call in the global illumination estimate with at_least_one_bounce_radiance. 
+            This new function takes a ray and and intersect and returns a color value, and it's internal actions depend on the depth of the ray. In my implementation ray depth acts like a countdown timer that puts a max
+            on how many times a ray can bounce. If the ray input to at_least_one_bounce_radiance has a depth of 0, no light is returned since this should be calculated by zero_bounce_radiance (more most renders, at_least_one should never have a 0 depth ray as input,
+            but this makes the function more durable). If the ray has a depth of 1, the function simply returns one_bounce_radiance. If the ray has a depth of more than one, we draw another ray with a specific russian-roulette likeleyhood (as per the spec,
+            if this is the first cast of the ray, that is if the ray has depth max_ray_depth, the chance of continuing is 1). If the ray will continue, a new ray is calculated using the bsdf's sample_f function, which is just an f function that also
+            randomly chooses a wi vector and returns it'd pdf. The min value of the ray is set to an epsilon to avoid self-intersection, the depth of the ray is decreased by 1, and the new ray is cast. The return value of the ray (if it hits anything) is calculated using a recursive 
+            call to the at_least_one_bounce_radiance function. This result is added to the one_bounce_radiance output using the algorithm described in lecture (the output is multiplied by the f function and the cosine of the incomeing light, then divided by the pdf and 
+            continuation probability to satify both the monte carlo and the russian-roulette expected values).
+          </p>
+
+          <h3 align="middle">Direct vs Global Illumination</h3>
+          <p>
+            Below are two examples of direct vs global illumination. Aside from an overall brighter image, the main effect of global
+            illumination is more realistic shadows. In the image with the bunny you can also see the slight change in color due to light bouncing off
+            the red or blue wall and hitting the bunny. In the dragon image, the infinate hemisphere light source already gets rid of most of the solid shadows in the direct 
+            illumination, so the main effect of global illumination is slightly softer self-shadowing.
+          </p>
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t4_1024bunny1b.png" align="middle" width="400px" />
+                  <figcaption align="middle">Bunny, direct illumination</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_1024bunny.png" align="middle" width="400px" />
+                  <figcaption align="middle">Bunny, global illumination</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t4_DragonDirect.png" align="middle" width="400px" />
+                  <figcaption align="middle">Dragon, direct illumination</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_DragonInDirect.png" align="middle" width="400px" />
+                  <figcaption align="middle">Dragon, global illumination</figcaption>
+                </td>
+              </tr>
+            </table>
+            <br>
+            <h3 align="middle">Direct vs Indirect Illumination</h3>
+            <p>
+              When summed, these images make a full global illumination image. The indirect lighting image appears almost an inverse of the direct lighting (the bunny is more lit 
+              from the bottom than the top). This is because the first bounce of indirect lightings (the 2-bounce rays) are brightest when their first bounce was off the floor back up twoards the bunny,
+              additional bounces mean the top of the bunny is still lit, but not as much as the initial indirect bounce from below.
+            </p>
+            <div align="middle">
+              <table style="width=100%">
+                <tr>
+                  <td>
+                    <img src="images/t4_1024bunny1b.png" align="middle" width="400px" />
+                    <figcaption align="middle">Bunny, direct illumination</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_1024bunnyIndirect.png" align="middle" width="400px" />
+                    <figcaption align="middle">Bunny, indirect illumination</figcaption>
+                  </td>
+                </tr>
+              </table>
+            <br>
+            <h3 align="middle">Changing max ray depth</h3>
+            <p>
+              Here you can see how, due to the relatively large reduction in total immumination that each additional bounce contributes, the image quickly converges as the 
+              number of bounces goes up. Personally, I can't even see a visual difference between the 3 bounce and 100 bounce image.
+            </p>
+            <div align="middle">
+              <table style="width=100%">
+                <tr>
+                  <td>
+                    <img src="images/t4_1024bunnyD0.png" align="middle" width="400px" />
+                    <figcaption align="middle">0 bounce</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_1024bunnyD1.png" align="middle" width="400px" />
+                    <figcaption align="middle">1 bounce</figcaption>
+                  </td>
+                </tr>
+                <br>
+                <tr>
+                  <td>
+                    <img src="images/t4_1024bunnyD2.png" align="middle" width="400px" />
+                    <figcaption align="middle">2 bounce</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_1024bunnyD3.png" align="middle" width="400px" />
+                    <figcaption align="middle">3 bounce</figcaption>
+                  </td>
+                </tr>
+              </table>
+              <img src="images/t4_1024bunnyD100.png" align="middle" width="400px" />
+              <figcaption align="middle">100 bounce</figcaption>
+              <br>
+            <h3 align="middle">Changing samples per pixel</h3>
+            <p>
+              Here you can see that the main effect of increased sample rate per pixel is a reduction in the noise of the image. For an example of how this noise occurs, conside a point on the top-left of the left sphere,
+              if the path traced from that point happens to hit the left wall, then algorithmically the point will be colored as if it were in a room that was entirely covered with blue walls. In reality, a path that hit that part of the sphere 
+              was about as likely to come from the ceiling as the blue was, so it should be a much lighter shade of blue (adding in the direct illumination it should be nearly pure white). Adding multiple rays per pixel helps the color average out, but 
+              when theres only a few rays the monte carlo sample might average to completely different values on neighbooring pixels based purely on chance.
+            </p>
+            <div align="middle">
+              <table style="width=100%">
+                <tr>
+                  <td>
+                    <img src="images/t4_SpheresS1.png" align="middle" width="400px" />
+                    <figcaption align="middle">1 Sample</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_SpheresS2.png" align="middle" width="400px" />
+                    <figcaption align="middle">2 Samples</figcaption>
+                  </td>
+                </tr>
+                <br>
+                <tr>
+                  <td>
+                    <img src="images/t4_SpheresS4.png" align="middle" width="400px" />
+                    <figcaption align="middle">4 Samples</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_SpheresS8.png" align="middle" width="400px" />
+                    <figcaption align="middle">8 Samples</figcaption>
+                  </td>
+                </tr>
+                <br>
+                <tr>
+                  <td>
+                    <img src="images/t4_SpheresS16.png" align="middle" width="400px" />
+                    <figcaption align="middle">16 Samples</figcaption>
+                  </td>
+                  <td>
+                    <img src="images/t4_SpheresS64.png" align="middle" width="400px" />
+                    <figcaption align="middle">64 Samples</figcaption>
+                  </td>
+                </tr>
+              </table>
+              <img src="images/t4_SpheresS1024.png" align="middle" width="400px" />
+              <figcaption align="middle">1024 Samples</figcaption>
+              <br>
+
+    <h2 align="middle">Part 5: Adaptive Sampling</h2>
+          <p>
+            Adaptive sampling only requires a minor conceptual change to the raytrace_pixel function. In the loop that samples num_samples rays per pixel,
+            I keep track of an additional 2 values: s1, the sum of the illumanance of each sample, and s2, the sum of the squares of the illuminance. Every samplesPerBatch samples (i.e. when i%samplesPerBatch == 0, where 
+            i is the index of the for loop) I use the c1 and c2 values to calculate the mean and the square of the standard deviation, I then set the variable I to be 1.96 times the square root of the squared standard deviation divided by the number of samples.
+            This simplifies to the equation from the spec, so if I is less than maxTolerance times the mean, we consider the value converged. This is because if I is small than either the standard deviation must be small, so we've narrowed in on a good light value, or 
+            we've taken a lot of samples and their average is probably fine anyways, or some combination of the two situations. If I is small enough, we normalize the color sum by the current number of samples and set the sampleCountBuffer at our position to be the current sample count so that the 
+            rate image renders properly. Finally, update the sample buffer with the color value and exit the function.
+          </p>
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t5.png" align="middle" width="400px" />
+                  <figcaption align="middle">Adaptive Sampling Result</figcaption>
+                </td>
+                <td>
+                  <img src="images/t5_rate.png" align="middle" width="400px" />
+                  <figcaption align="middle">Adaptive Sampling Rate</figcaption>
+                </td>
+              </tr>
+            </table>
+</div>
+</body>
 </html>
+
+
+
+
