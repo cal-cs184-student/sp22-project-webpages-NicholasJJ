@@ -1,7 +1,164 @@
-<html>
-	<head>
-	</head>
-	<body>
-		Project 3-2 here
-	</body>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<style>  
+    div.padded {  
+      padding-top: 0px;  
+      padding-right: 100px;  
+      padding-bottom: 0.25in;  
+      padding-left: 100px;  
+    }  
+  </style> 
+<title>Nicholas Jennings  |  CS 184</title>
+<meta http-equiv="content-type" content="text/html; charset=utf-8" />
+<link rel="stylesheet" type="text/css" href="style.css" media="screen" />
+</head>
+<body>
+<br />
+<h1 align="middle">Assignment 3: PathTracer</h1>
+    <h2 align="middle">Nicholas Jennings</h2>
+
+    <div class="padded">
+        <p>
+            NOTE: My personal computer uses an M1 chip, so I didn't use the 3-1 staff solution for most of the project. When implementing part 1, I found that switching to the staff solution 
+            solved a bug I was having, so the part 1 images were rendered on a hive machine. For ease of use, the part 4 images were still rendered on my personal computer using my solution to 3-1. The github commit I've flagged for submission 
+            uses the staff solution.
+        </p>
+        <br>
+        <br>
+        <p>
+            In this project I implemented two additional features to the raytracing rendered from project 3-1: Glass and Mirror materials, and Depth of Field. Since the light values returned from a ray-object intersection are mostly determined by
+            the BSDF methods of the object, implementing new materials simply meant creating new methods. The major difference of mirror and refractive materials to the diffuse materials from 3-1 is that the new materials have non-random incedent light 
+            vectors for a given outgoing light vector, so the BSDF methods had to calculate the incedent vector while providing pdf and BSDF function values to cancel out the factors in the pathtracer method meant to account for randomness. The glass material randomly renders
+            either as a reflection or a refraction depending on Schlick's reflection coefficient. When averaged over multiple light rays, this results in the partial reflection / partial refraction that you would expect from glass.
+        </p>
+        <p>
+            To implement depth of field, the camera model had to be changed from 3-1's pinhole camera to a more realistic thin-lense model. The thin-lense model isn't physically acurate, since it assumes an infinatly thin lense,
+            but it is still able to produce a depth-of-field effect. The model uses the fact that all light rays passing through a given point on the plane of focus will arrive at the same pixel location. Paired with the fact that the pinhole-model ray passing throught the center 
+            of the lense will not be bent by the lense, this gives a new way of generating rays for a given screen pixel. Implementing the pinhole camera model is as simple as replacing the 3-1 ray generation function with this new one, and results in two additional render settings: the 
+            appature (lens) radius and the focal distance.
+        </p>
+
+    <h2 align="middle">Part 1: Mirror and Glass Materials</h2>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t1_0.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 0</figcaption>
+                </td>
+                <td>
+                  <img src="images/t1_1.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 1</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t1_2.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 2</figcaption>
+                </td>
+                <td>
+                  <img src="images/t1_3.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 3</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t1_4.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 4</figcaption>
+                </td>
+                <td>
+                  <img src="images/t1_5.png" align="middle" width="400px" />
+                  <figcaption align="middle">Max Ray Depth = 5</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+        <div align="center">
+            <table style="width=100%">
+                <tr>
+                    <td align="middle">
+                    <img src="images/t1_100.png" width="480px" />
+                    <figcaption align="middle">Max Ray Depth = 100</figcaption>
+                </tr>
+            </table>
+        </div>
+        <p>
+            At 0 bounces, we can only see the direct light from the light source. At one bounce we can see the diffuse walls, but only the direct light 
+            has beed reflected by each sphere. At 2 bounces the reflecance of both spheres becomes mostly complete, you can see the black ceiling in the mirror sphere due to the ceiling only 
+            receiving light after 2 bounces. Actually, since the mirror requires an extra bounce of light, the scene visible through the mirror will always be the scene from the previous image.
+            Reflectance takes at least 2 bounces: light to sphere, sphere to sphere, and sphere to camera, but needs another bounce to illuminate walls or refract light from walls. You can see
+            a sliver of white near the bottom of the mirror sphere after 2 bounces, but the main refraction effect only appears non-black after 3 bounces. At 4 bounces the light can bounce 
+            off the mirror sphere, get refracted through the glass sphere, hit an object, and then enter the camera, which results in the light circle on the blue wall. At this point the image is basically done,
+            the only big changes I can see are further lightening of shadows and coloring of objects near the colored walls, just like in 3-1.
+        </p>
+        <h2 align="middle">Part 4: Depth of Field</h2>
+        <p>
+            The main difference between a pinhole and thin-lense camera model is which light rays are assumed to correspond with a given screen pixel.
+            In a pinhole camera model a pixel's color is determined only by rays that "start" somewhere on the pixel and pass through the camera origin (the pinhole).
+            In a thin lense camera, any ray that starts on the lense, and passes through the same point on the plane of focus as the pinhole-model ray, is assumed to affect the color of the pixel, since the thin 
+            lense would bend all these rays to the same pixel. Here the possible points on the lense, and the distance to the plane of focus, are both additional camera variables. The result is that if the pinhole-model ray doesn't intersect anything at the plane of focus,
+            then the rays for that pixel will hit slightly different parts of the scene and result in a blurred color value.
+        </p>
+        <h3 align="middle">Focus Stack</h3>
+        <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t4_s0.png" align="middle" width="400px" />
+                  <figcaption align="middle">Focus on Head</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_s1.png" align="middle" width="400px" />
+                  <figcaption align="middle">Focus on upper curve of back</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t4_s2.png" align="middle" width="400px" />
+                  <figcaption align="middle">Focus on lower curve of back</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_s3.png" align="middle" width="400px" />
+                  <figcaption align="middle">Focus on tail</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <h3 align="middle">Different Apature Sizes</h3>
+          <div align="middle">
+            <table style="width=100%">
+              <tr>
+                <td>
+                  <img src="images/t4_a1.png" align="middle" width="400px" />
+                  <figcaption align="middle">Lens radius = 0.10</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_a3.png" align="middle" width="400px" />
+                  <figcaption align="middle">Lens radius = 0.30</figcaption>
+                </td>
+              </tr>
+              <br>
+              <tr>
+                <td>
+                  <img src="images/t4_a6.png" align="middle" width="400px" />
+                  <figcaption align="middle">Lens radius = 0.60</figcaption>
+                </td>
+                <td>
+                  <img src="images/t4_a10.png" align="middle" width="400px" />
+                  <figcaption align="middle">Lens radius = 1.00</figcaption>
+                </td>
+              </tr>
+            </table>
+          </div>
+</div>
+</body>
 </html>
+
+
+
+
